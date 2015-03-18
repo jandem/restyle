@@ -8,6 +8,52 @@ def maybe_char(s, i):
         return s[i]
     return ''
 
+comment_words = [
+    "the",
+    "a",
+    "in",
+    "on",
+    "with",
+    "and",
+    "is",
+    "as",
+    "from",
+    "to",
+    "both",
+    "populate",
+    "via",
+    "then",
+    "of",
+    "get",
+    "gets",
+    "set",
+    "sets",
+    "we",
+    "says",
+    "into",
+    "while",
+    "advance",
+    "but",
+    "restore",
+    "this",
+    "these",
+    "that",
+    "if",
+    "otherwise",
+    "transform",
+    "initializing",
+    "create",
+    "observe",
+    "box",
+    "adjust",
+    "be",
+    ".---->",
+]
+
+# Add capitalized words.
+for i in range(len(comment_words)):
+    comment_words.append(comment_words[i].title())
+
 def process_line(line):
     linenew = ""
     i = 0
@@ -56,7 +102,7 @@ def process_line(line):
             # followed by a number of alphanumeric chars + '*'. Yes, this is a poor
             # man's regular expression.
             j = after_sigils
-            while maybe_char(line, j).isalnum():
+            while maybe_char(line, j).isalnum() or maybe_char(line, j) in ("-", "'"):
                 j += 1
             if maybe_char(line, j) == '*':
                 i += 1
@@ -74,6 +120,12 @@ def process_line(line):
 
             if sigils in ("*", "&") and maybe_char(line, after_sigils) == '=':
                 # Don't turn A *= b into A* = b. Same for &=.
+                i += 1
+                continue
+
+            parts = stripped.split(" ")
+            if len(parts) > 1 and parts[-1] in comment_words:
+                # Skip common false positives in comments, like "store in *foo".
                 i += 1
                 continue
 
@@ -159,6 +211,8 @@ def run_tests():
         ("Foo<Bar ***> &foo", "Foo<Bar***>& foo"),
         ("Foo<Bar ***> *&foo", "Foo<Bar***>*& foo"),
         ("Foo > *bar", "Foo > *bar"),
+
+        ("// store in *foo.", "// store in *foo."),
     ]
 
     for inp, expected in cases:
@@ -182,19 +236,22 @@ def should_restyle(filename):
             return True
     return False
 
-def process_file(filename):
+def process_file(filename, dryrun):
     print "Processing " + filename + "..."
     result = ""
     with open(filename) as f:
         for line in f:
             result += process_line(line)
-    with open(filename, 'wb') as f:
-        f.write(result)
+    if not dryrun:
+        with open(filename, 'wb') as f:
+            f.write(result)
 
 def main():
     parser = argparse.ArgumentParser(description='Restyle SpiderMonkey et al ;-)')
     parser.add_argument('--tree', dest='restyle_tree', action='store_true',
                         help='Restyle JS/XPConnect directories. Should be run from root of hg clone.')
+    parser.add_argument('--dryrun', dest='dryrun', action='store_true',
+                        help='Process the files without actually updating them.')
     parser.add_argument('--files', metavar='FILE', help='A file to be restyled',
                         nargs='*')
     args = parser.parse_args()
@@ -210,10 +267,10 @@ def main():
         for filename in filenames:
             if not should_restyle(filename):
                 continue
-            process_file(filename)
+            process_file(filename, args.dryrun)
     elif args.files:
         for filename in args.files:
-            process_file(filename)
+            process_file(filename, args.dryrun)
 
 if __name__ == "__main__":
     main()

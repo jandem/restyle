@@ -28,7 +28,8 @@ def process_line(line):
                 #
                 #    int *foo, *foo = bar;
                 #             ^
-                # We do want to convert Foo<bar> *foo, but not Foo > bar * 2.
+                # Note that we want to convert Foo<bar> *foo, but
+                # not Foo > *bar.
                 i += 1
                 continue
 

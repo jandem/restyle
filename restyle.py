@@ -65,7 +65,7 @@ def process_line(line):
             stripped = linenew.strip()
             if (len(stripped) == 0 or
                 not (stripped[-1].isalnum() or
-                     (stripped[-1] == '>' and not stripped[-2:] == " >"))):
+                     (stripped[-1] == '>' and (stripped[-3:] == "> >" or stripped[-2:] != " >")))):
                 # Ignore whitespace at the start of the line or after
                 # non-alphanumeric characters. Things like:
                 #
@@ -74,8 +74,8 @@ def process_line(line):
                 #
                 #    int *foo, *foo = bar;
                 #             ^
-                # Note that we want to convert Foo<bar> *foo, but
-                # not Foo > *bar.
+                # Note that we want to convert Foo<bar> *foo, but not
+                # Foo > *bar. We do want to convert Foo<Bar<T> > *foo though...
                 i += 1
                 continue
 
@@ -211,6 +211,9 @@ def run_tests():
         ("Foo<Bar ***> &foo", "Foo<Bar***>& foo"),
         ("Foo<Bar ***> *&foo", "Foo<Bar***>*& foo"),
         ("Foo > *bar", "Foo > *bar"),
+
+        ("Foo<Bar<T> > *foo", "Foo<Bar<T> >* foo"),
+        ("Foo<Bar<T> > &&foo", "Foo<Bar<T> >&& foo"),
 
         ("// store in *foo.", "// store in *foo."),
     ]

@@ -11,6 +11,9 @@ def maybe_char(s, i):
 comment_words = [
     "the",
     "a",
+    "by",
+    "have",
+    "has",
     "in",
     "on",
     "with",
@@ -39,6 +42,7 @@ comment_words = [
     "these",
     "that",
     "if",
+    "else",
     "otherwise",
     "transform",
     "initializing",
@@ -48,6 +52,8 @@ comment_words = [
     "adjust",
     "be",
     ".---->",
+    "sourceURL=<url>",
+    "|static",
 ]
 
 # Add capitalized words.
@@ -65,6 +71,7 @@ def process_line(line):
             stripped = linenew.strip()
             if (len(stripped) == 0 or
                 not (stripped[-1].isalnum() or
+                     stripped[-1] == '_' or
                      (stripped[-1] == '>' and (stripped[-3:] == "> >" or stripped[-2:] != " >")))):
                 # Ignore whitespace at the start of the line or after
                 # non-alphanumeric characters. Things like:
@@ -79,7 +86,7 @@ def process_line(line):
                 i += 1
                 continue
 
-            if stripped.endswith("return") or stripped.endswith("sizeof"):
+            if stripped.endswith("return") or stripped.endswith("sizeof") or stripped.endswith("else"):
                 # Don't turn |return *a| into |return* a|, same for sizeof.
                 i += 1
                 continue
@@ -93,8 +100,17 @@ def process_line(line):
                 continue
 
             nextchar = maybe_char(line, after_sigils)
-            if nextchar in ('/', ' '):
-                # Ignore "*/" (end of comment) and "* " (as in a * b).
+            if nextchar in ('/', ' ', '%', '"'):
+                # Ignore "*/" (end of comment), "* " (as in a * b) and
+                # *% (as in *%s printf format string).
+                i += 1
+                continue
+
+            sigils = line[i+1:after_sigils]
+
+            if len(sigils) > 4 and sigils.startswith("****"):
+                # Things like ******* may appear in comments but doesn't occur in
+                # real code.
                 i += 1
                 continue
 
@@ -102,13 +118,13 @@ def process_line(line):
             # followed by a number of alphanumeric chars + '*'. Yes, this is a poor
             # man's regular expression.
             j = after_sigils
-            while maybe_char(line, j).isalnum() or maybe_char(line, j) in ("-", "'"):
+            while (maybe_char(line, j).isalnum() or
+                   maybe_char(line, j) in ('-', "'")):
                 j += 1
-            if maybe_char(line, j) == '*':
+            if sigils == "*" and maybe_char(line, j) == '*' and line[after_sigils:j] not in ("operator", "const"):
                 i += 1
                 continue
 
-            sigils = line[i+1:after_sigils]
             if sigils == "&&" and line[after_sigils:].strip() == "":
                 # |Foo &| or |Foo *| at the end of a line is turned into
                 # |Foo&| or |Foo*|, but we don't do this for && as it
@@ -132,13 +148,18 @@ def process_line(line):
             # OK, we have a match. Copy the sigils.
             linenew += sigils
 
-            if nextchar.isalpha() or nextchar == '_':
+            if (nextchar.isalpha() or nextchar == '_' or
+                (nextchar == '(' and maybe_char(line, after_sigils + 1) == '*')):
                 # Insert the spaces at the other side of the sigils. Only do this
-                # if we're followed by an identifier, to avoid:
+                # if we're followed by an identifier or '(', to avoid:
                 #
                 # - Trailing whitespace when we do |Foo *| -> |Foo* |
                 # - Foo<Bar *> should become Foo<Bar*>
                 # - Likewise for these two cases: f(Foo *, Bar &) -> f(Foo*, Bar&)
+                #
+                # We do allow '(', so that we get spaces after A* here:
+                #
+                # A *(*F)() -> A* (*F)()
 
                 # Edge case: if we found more than one space, subtract the number of
                 # sigils we found, to handle this case correctly:
@@ -188,7 +209,7 @@ def run_tests():
 
         # Should preserve amount of whitespace as best as possible.
         ("AA     *foo", "AA*    foo"),
-        ("AA     *****foo", "AA***** foo"),
+        ("AA    ***foo", "AA*** foo"),
 
         # Should not turn comments like |a *or* b| into |a* or* b|.
         ("// a *or* b", "// a *or* b"),
@@ -216,6 +237,30 @@ def run_tests():
         ("Foo<Bar<T> > &&foo", "Foo<Bar<T> >&& foo"),
 
         ("// store in *foo.", "// store in *foo."),
+
+        ("A *(*F)(B *b)", "A* (*F)(B* b)"),
+
+        ("operator T *()", "operator T*()"),
+        ("operator Foo &()", "operator Foo&()"),
+
+        ("A &operator*() {}", "A& operator*() {}"),
+        ("A *operator*() {}", "A* operator*() {}"),
+
+        ("* described by *reportp", "* described by *reportp"),
+        ("// I have *no idea* whether", "// I have *no idea* whether"),
+
+        ("else *p++ = '0';", "else *p++ = '0';"),
+
+        ("Foo_ *bar;", "Foo_* bar;"),
+        ("Foo_ &&bar;", "Foo_&& bar;"),
+
+        ('printf("call      *%s")', 'printf("call      *%s")'),
+        ('printf("call      &%s")', 'printf("call      &%s")'),
+
+        ('// "/\* //# sourceURL=<url> *\/', '// "/\* //# sourceURL=<url> *\/'),
+        ("// which |static *(| can", "// which |static *(| can"),
+
+        ("* ***** BEGIN LICENSE BLOCK *****", "* ***** BEGIN LICENSE BLOCK *****")
     ]
 
     for inp, expected in cases:

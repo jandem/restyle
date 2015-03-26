@@ -109,7 +109,7 @@ def process_line(line):
             sigils = line[i+1:after_sigils]
 
             if len(sigils) > 4 and sigils.startswith("****"):
-                # Things like ******* may appear in comments but doesn't occur in
+                # Things like ******* may appear in comments but don't occur in
                 # real code.
                 i += 1
                 continue

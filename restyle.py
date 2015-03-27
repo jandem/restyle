@@ -25,6 +25,7 @@ comment_words = [
     "both",
     "populate",
     "via",
+    "(via",
     "then",
     "of",
     "get",
@@ -54,11 +55,32 @@ comment_words = [
     ".---->",
     "sourceURL=<url>",
     "|static",
+    "|export",
+    "call",
+    "calls",
+    "instruction",
+    "uses",
+    "other",
+    "initialize",
+    "->",
+    "visit",
+    "true",
+    "false",
+    "using",
+    "function",
+    "its",
+    "uses",
+    "IC",
+    "movl",
 ]
 
 # Add capitalized words.
 for i in range(len(comment_words)):
     comment_words.append(comment_words[i].title())
+
+# Remove some capitalized words that are used in code.
+comment_words.remove("Instruction")
+comment_words.remove("Call")
 
 def process_line(line):
     linenew = ""
@@ -157,7 +179,7 @@ def process_line(line):
                 # - Foo<Bar *> should become Foo<Bar*>
                 # - Likewise for these two cases: f(Foo *, Bar &) -> f(Foo*, Bar&)
                 #
-                # We do allow '(', so that we get spaces after A* here:
+                # We do allow "(*", so that we get spaces after A* here:
                 #
                 # A *(*F)() -> A* (*F)()
 
@@ -275,10 +297,16 @@ directories = [
     "js/xpconnect",
     "js/ipc"
 ]
+blacklist_directories = [
+    "js/src/ctypes/libffi"
+]
 
 def should_restyle(filename):
     if not filename.endswith(".h") and not filename.endswith(".cpp"):
         return False
+    for d in blacklist_directories:
+        if filename.startswith(d):
+            return False
     for d in directories:
         if filename.startswith(d):
             return True

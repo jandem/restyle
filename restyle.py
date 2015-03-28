@@ -54,6 +54,7 @@ comment_words = [
     "be",
     ".---->",
     "sourceURL=<url>",
+    "sourceMappingURL=<url>",
     "|static",
     "|export",
     "call",
@@ -72,6 +73,7 @@ comment_words = [
     "uses",
     "IC",
     "movl",
+    "overwriting",
 ]
 
 # Add capitalized words.
